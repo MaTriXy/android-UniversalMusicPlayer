@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.example.android.uamp;
+package com.example.android.uamp.playback;
 
-import static android.media.session.MediaSession.QueueItem;
+import com.example.android.uamp.MusicService;
+
+import static android.support.v4.media.session.MediaSessionCompat.QueueItem;
 
 /**
  * Interface representing either Local or Remote Playback. The {@link MusicService} works
@@ -61,43 +63,21 @@ public interface Playback {
     /**
      * @return pos if currently playing an item
      */
-    int getCurrentStreamPosition();
+    long getCurrentStreamPosition();
 
     /**
-     * Set the current position. Typically used when switching players that are in
-     * paused state.
-     *
-     * @param pos position in the stream
+     * Queries the underlying stream and update the internal last known stream position.
      */
-    void setCurrentStreamPosition(int pos);
+    void updateLastKnownStreamPosition();
 
-    /**
-     * @param item to play
-     */
     void play(QueueItem item);
 
-    /**
-     * Pause the current playing item
-     */
     void pause();
 
-    /**
-     * Seek to the given position
-     */
-    void seekTo(int position);
+    void seekTo(long position);
 
-    /**
-     * Set the current mediaId. This is only used when switching from one
-     * playback to another.
-     *
-     * @param mediaId to be set as the current.
-     */
     void setCurrentMediaId(String mediaId);
 
-    /**
-     *
-     * @return the current media Id being processed in any state or null.
-     */
     String getCurrentMediaId();
 
     interface Callback {
@@ -120,11 +100,8 @@ public interface Playback {
         /**
          * @param mediaId being currently played
          */
-        void onMetadataChanged(String mediaId);
+        void setCurrentMediaId(String mediaId);
     }
 
-    /**
-     * @param callback to be called
-     */
     void setCallback(Callback callback);
 }
