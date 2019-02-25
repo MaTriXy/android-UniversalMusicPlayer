@@ -16,45 +16,37 @@
 
 package com.example.android.uamp
 
-import android.arch.lifecycle.Observer
-import android.arch.lifecycle.ViewModelProviders
 import android.os.Bundle
-import android.support.v4.app.Fragment
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProviders
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.android.uamp.utils.InjectorUtils
+import com.example.android.uamp.viewmodels.MainActivityViewModel
 import com.example.android.uamp.viewmodels.MediaItemFragmentViewModel
 import kotlinx.android.synthetic.main.fragment_mediaitem_list.list
 import kotlinx.android.synthetic.main.fragment_mediaitem_list.loadingSpinner
+import kotlinx.android.synthetic.main.fragment_mediaitem_list.networkError
 
 /**
  * A fragment representing a list of MediaItems.
  */
-class MediaItemFragment : Fragment() {
+class MediaItemFragment : androidx.fragment.app.Fragment() {
     private lateinit var mediaId: String
+    private lateinit var mainActivityViewModel: MainActivityViewModel
     private lateinit var mediaItemFragmentViewModel: MediaItemFragmentViewModel
-    private lateinit var browsableItemClicked: (MediaItemData) -> Unit
 
     private val listAdapter = MediaItemAdapter { clickedItem ->
-        if (clickedItem.browsable) {
-            browsableItemClicked(clickedItem)
-        } else {
-            mediaItemFragmentViewModel.playMedia(clickedItem)
-        }
-
+        mainActivityViewModel.mediaItemClicked(clickedItem)
     }
 
     companion object {
-        fun newInstance(
-                mediaId: String,
-                browsableItemClicked: (MediaItemData) -> Unit
-        ): MediaItemFragment {
+        fun newInstance(mediaId: String): MediaItemFragment {
 
             return MediaItemFragment().apply {
-                this.browsableItemClicked = browsableItemClicked
                 arguments = Bundle().apply {
                     putString(MEDIA_ID_ARG, mediaId)
                 }
@@ -74,13 +66,18 @@ class MediaItemFragment : Fragment() {
         val context = activity ?: return
         mediaId = arguments?.getString(MEDIA_ID_ARG) ?: return
 
+        mainActivityViewModel = ViewModelProviders
+                .of(context, InjectorUtils.provideMainActivityViewModel(context))
+                .get(MainActivityViewModel::class.java)
+
         mediaItemFragmentViewModel = ViewModelProviders
                 .of(this, InjectorUtils.provideMediaItemFragmentViewModel(context, mediaId))
                 .get(MediaItemFragmentViewModel::class.java)
         mediaItemFragmentViewModel.mediaItems.observe(this,
                 Observer<List<MediaItemData>> { list ->
                     val isEmptyList = list?.isEmpty() ?: true
-                    loadingSpinner.visibility = if (isEmptyList) View.VISIBLE else View.GONE
+                    loadingSpinner.visibility = View.GONE
+                    networkError.visibility = if (isEmptyList) View.VISIBLE else View.GONE
                     listAdapter.submitList(list)
                 })
 

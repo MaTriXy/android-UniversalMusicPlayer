@@ -16,12 +16,12 @@
 
 package com.example.android.uamp.viewmodels
 
-import android.arch.lifecycle.LiveData
-import android.arch.lifecycle.MutableLiveData
-import android.arch.lifecycle.Observer
-import android.arch.lifecycle.Transformations
-import android.arch.lifecycle.ViewModel
-import android.arch.lifecycle.ViewModelProvider
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
+import androidx.lifecycle.Transformations
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaBrowserCompat.MediaItem
 import android.support.v4.media.MediaBrowserCompat.SubscriptionCallback
@@ -114,44 +114,22 @@ class MediaItemFragmentViewModel(private val mediaId: String,
         it.nowPlaying.observeForever(mediaMetadataObserver)
     }
 
+    /**
+     * Since we use [LiveData.observeForever] above (in [mediaSessionConnection]), we want
+     * to call [LiveData.removeObserver] here to prevent leaking resources when the [ViewModel]
+     * is not longer in use.
+     *
+     * For more details, see the kdoc on [mediaSessionConnection] above.
+     */
     override fun onCleared() {
         super.onCleared()
 
-        /**
-         * When the [ViewModel] is no longer in use, remove the permanent observers from
-         * the [MediaSessionConnection] [LiveData] sources.
-         */
+        // Remove the permanent observers from the MediaSessionConnection.
         mediaSessionConnection.playbackState.removeObserver(playbackStateObserver)
         mediaSessionConnection.nowPlaying.removeObserver(mediaMetadataObserver)
 
         // And then, finally, unsubscribe the media ID that was being watched.
         mediaSessionConnection.unsubscribe(mediaId, subscriptionCallback)
-    }
-
-    /**
-     * This method takes a [MediaItemData] and does one of the following:
-     * - If the item is *not* the active item, then play it directly.
-     * - If the item *is* the active item, check whether "pause" is a permitted command. If it is,
-     *   then pause playback, otherwise send "play" to resume playback.
-     */
-    fun playMedia(mediaItem: MediaItemData) {
-        val nowPlaying = mediaSessionConnection.nowPlaying.value
-        val transportControls = mediaSessionConnection.transportControls
-
-        if (mediaItem.mediaId == nowPlaying?.id) {
-            mediaSessionConnection.playbackState.value?.let { playbackState ->
-                when {
-                    playbackState.isPlaying -> transportControls.pause()
-                    playbackState.isPlayEnabled -> transportControls.play()
-                    else -> {
-                        Log.w(TAG, "Playable item clicked but neither play nor pause are enabled!" +
-                                " (mediaId=${mediaItem.mediaId})")
-                    }
-                }
-            }
-        } else {
-            transportControls.playFromMediaId(mediaItem.mediaId, null)
-        }
     }
 
     private fun getResourceForMediaId(mediaId: String): Int {
@@ -173,7 +151,7 @@ class MediaItemFragmentViewModel(private val mediaId: String,
         }
 
         return mediaItems.value?.map {
-            val useResId = if (it.mediaId == mediaMetadata.id) newResId else 0
+            val useResId = if (it.mediaId == mediaMetadata.id) newResId else NO_RES
             it.copy(playbackRes = useResId)
         } ?: emptyList()
     }

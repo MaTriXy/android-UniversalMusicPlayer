@@ -20,6 +20,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.AsyncTask
 import android.support.v4.media.MediaBrowserCompat.MediaItem
+import android.support.v4.media.MediaDescriptionCompat.STATUS_NOT_DOWNLOADED
 import android.support.v4.media.MediaMetadataCompat
 import com.bumptech.glide.Glide
 import com.bumptech.glide.RequestManager
@@ -34,6 +35,7 @@ import com.example.android.uamp.media.extensions.displayDescription
 import com.example.android.uamp.media.extensions.displayIconUri
 import com.example.android.uamp.media.extensions.displaySubtitle
 import com.example.android.uamp.media.extensions.displayTitle
+import com.example.android.uamp.media.extensions.downloadStatus
 import com.example.android.uamp.media.extensions.duration
 import com.example.android.uamp.media.extensions.flag
 import com.example.android.uamp.media.extensions.genre
@@ -44,6 +46,7 @@ import com.example.android.uamp.media.extensions.trackCount
 import com.example.android.uamp.media.extensions.trackNumber
 import com.google.gson.Gson
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.net.URL
 import java.util.concurrent.TimeUnit
@@ -78,13 +81,10 @@ private class UpdateCatalogTask(val glide: RequestManager,
         AsyncTask<Uri, Void, List<MediaMetadataCompat>>() {
 
     override fun doInBackground(vararg params: Uri): List<MediaMetadataCompat> {
-        val gson = Gson()
         val mediaItems = ArrayList<MediaMetadataCompat>()
 
         params.forEach { catalogUri ->
-            val catalogConn = URL(catalogUri.toString())
-            val reader = BufferedReader(InputStreamReader(catalogConn.openStream()))
-            val musicCat = gson.fromJson<JsonCatalog>(reader, JsonCatalog::class.java)
+            val musicCat = tryDownloadJson(catalogUri)
 
             // Get the base URI to fix up relative references later.
             val baseUri = catalogUri.toString().removeSuffix(catalogUri.lastPathSegment)
@@ -122,6 +122,21 @@ private class UpdateCatalogTask(val glide: RequestManager,
         super.onPostExecute(mediaItems)
         listener(mediaItems)
     }
+
+    /**
+     * Attempts to download a catalog from a given Uri.
+     *
+     * @param catalogUri URI to attempt to download the catalog form.
+     * @return The catalog downloaded, or an empty catalog if an error occurred.
+     */
+    private fun tryDownloadJson(catalogUri: Uri) =
+        try {
+            val catalogConn = URL(catalogUri.toString())
+            val reader = BufferedReader(InputStreamReader(catalogConn.openStream()))
+            Gson().fromJson<JsonCatalog>(reader, JsonCatalog::class.java)
+        } catch (ioEx: IOException) {
+            JsonCatalog()
+        }
 }
 
 /**
@@ -150,6 +165,11 @@ fun MediaMetadataCompat.Builder.from(jsonMusic: JsonMusic): MediaMetadataCompat.
     displaySubtitle = jsonMusic.artist
     displayDescription = jsonMusic.album
     displayIconUri = jsonMusic.image
+
+    // Add downloadStatus to force the creation of an "extras" bundle in the resulting
+    // MediaMetadataCompat object. This is needed to send accurate metadata to the
+    // media session during updates.
+    downloadStatus = STATUS_NOT_DOWNLOADED
 
     // Allow it to be used in the typical builder style.
     return this

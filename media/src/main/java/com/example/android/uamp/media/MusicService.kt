@@ -26,30 +26,29 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.support.v4.app.NotificationManagerCompat
-import android.support.v4.media.AudioAttributesCompat
+import androidx.core.app.NotificationManagerCompat
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaBrowserCompat.MediaItem
-import android.support.v4.media.MediaBrowserServiceCompat
+import androidx.media.MediaBrowserServiceCompat
 import android.support.v4.media.MediaDescriptionCompat
+import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
-import com.example.android.uamp.media.audiofocus.AudioFocusExoPlayerDecorator
 import com.example.android.uamp.media.extensions.flag
 import com.example.android.uamp.media.library.BrowseTree
 import com.example.android.uamp.media.library.JsonSource
 import com.example.android.uamp.media.library.MusicSource
 import com.example.android.uamp.media.library.UAMP_BROWSABLE_ROOT
-import com.google.android.exoplayer2.DefaultLoadControl
-import com.google.android.exoplayer2.DefaultRenderersFactory
+import com.example.android.uamp.media.library.UAMP_EMPTY_ROOT
+import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.ExoPlayerFactory
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.Timeline
+import com.google.android.exoplayer2.audio.AudioAttributes
 import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
 import com.google.android.exoplayer2.ext.mediasession.TimelineQueueNavigator
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import com.google.android.exoplayer2.util.Util
 
@@ -64,7 +63,7 @@ import com.google.android.exoplayer2.util.Util
  * For more information on implementing a MediaBrowserService,
  * visit [https://developer.android.com/guide/topics/media-apps/audio-app/building-a-mediabrowserservice.html](https://developer.android.com/guide/topics/media-apps/audio-app/building-a-mediabrowserservice.html).
  */
-class MusicService : MediaBrowserServiceCompat() {
+class MusicService : androidx.media.MediaBrowserServiceCompat() {
     private lateinit var mediaSession: MediaSessionCompat
     private lateinit var mediaController: MediaControllerCompat
     private lateinit var becomingNoisyReceiver: BecomingNoisyReceiver
@@ -72,6 +71,7 @@ class MusicService : MediaBrowserServiceCompat() {
     private lateinit var notificationBuilder: NotificationBuilder
     private lateinit var mediaSource: MusicSource
     private lateinit var mediaSessionConnector: MediaSessionConnector
+    private lateinit var packageValidator: PackageValidator
 
     /**
      * This must be `by lazy` because the source won't initially be ready.
@@ -87,19 +87,16 @@ class MusicService : MediaBrowserServiceCompat() {
     private val remoteJsonSource: Uri =
             Uri.parse("https://storage.googleapis.com/uamp/catalog.json")
 
-    private val audioAttributes = AudioAttributesCompat.Builder()
-            .setContentType(AudioAttributesCompat.CONTENT_TYPE_MUSIC)
-            .setUsage(AudioAttributesCompat.USAGE_MEDIA)
+    private val uAmpAudioAttributes = AudioAttributes.Builder()
+            .setContentType(C.CONTENT_TYPE_MUSIC)
+            .setUsage(C.USAGE_MEDIA)
             .build()
 
     // Wrap a SimpleExoPlayer with a decorator to handle audio focus for us.
     private val exoPlayer: ExoPlayer by lazy {
-        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        AudioFocusExoPlayerDecorator(audioAttributes,
-                audioManager,
-                ExoPlayerFactory.newSimpleInstance(DefaultRenderersFactory(this),
-                        DefaultTrackSelector(),
-                        DefaultLoadControl()))
+        ExoPlayerFactory.newSimpleInstance(this).apply {
+            setAudioAttributes(uAmpAudioAttributes, true)
+        }
     }
 
     override fun onCreate() {
@@ -156,11 +153,26 @@ class MusicService : MediaBrowserServiceCompat() {
             it.setPlayer(exoPlayer, playbackPreparer)
             it.setQueueNavigator(UampQueueNavigator(mediaSession))
         }
+
+        packageValidator = PackageValidator(this, R.xml.allowed_media_browser_callers)
     }
 
+    /**
+     * This is the code that causes UAMP to stop playing when swiping it away from recents.
+     * The choice to do this is app specific. Some apps stop playback, while others allow playback
+     * to continue and allow uses to stop it with the notification.
+     */
     override fun onTaskRemoved(rootIntent: Intent) {
         super.onTaskRemoved(rootIntent)
-        stopSelf()
+
+        /**
+         * By stopping playback, the player will transition to [Player.STATE_IDLE]. This will
+         * cause a state change in the MediaSession, and (most importantly) call
+         * [MediaControllerCallback.onPlaybackStateChanged]. Because the playback state will
+         * be reported as [PlaybackStateCompat.STATE_NONE], the service will first remove
+         * itself as a foreground service, and will then call [stopSelf].
+         */
+        exoPlayer.stop(true)
     }
 
     override fun onDestroy() {
@@ -173,13 +185,26 @@ class MusicService : MediaBrowserServiceCompat() {
     /**
      * Returns the "root" media ID that the client should request to get the list of
      * [MediaItem]s to browse/play.
-     *
-     * TODO: Allow different roots based on which app is attempting to connect.
      */
     override fun onGetRoot(clientPackageName: String,
                            clientUid: Int,
-                           rootHints: Bundle?): MediaBrowserServiceCompat.BrowserRoot? {
-        return BrowserRoot(UAMP_BROWSABLE_ROOT, null)
+                           rootHints: Bundle?): BrowserRoot? {
+
+        return if (packageValidator.isKnownCaller(clientPackageName, clientUid)) {
+            // The caller is allowed to browse, so return the root.
+            BrowserRoot(UAMP_BROWSABLE_ROOT, null)
+        } else {
+            /**
+             * Unknown caller. There are two main ways to handle this:
+             * 1) Return a root without any content, which still allows the connecting client
+             * to issue commands.
+             * 2) Return `null`, which will cause the system to disconnect the app.
+             *
+             * UAMP takes the first approach for a variety of reasons, but both are valid
+             * options.
+             */
+            BrowserRoot(UAMP_EMPTY_ROOT, null)
+        }
     }
 
     /**
@@ -189,7 +214,7 @@ class MusicService : MediaBrowserServiceCompat() {
      */
     override fun onLoadChildren(
             parentMediaId: String,
-            result: MediaBrowserServiceCompat.Result<List<MediaItem>>) {
+            result: androidx.media.MediaBrowserServiceCompat.Result<List<MediaItem>>) {
 
         // If the media source is ready, the results will be set synchronously here.
         val resultsSent = mediaSource.whenReady { successfullyInitialized ->
@@ -243,8 +268,19 @@ class MusicService : MediaBrowserServiceCompat() {
      * - Calls [Service.startForeground] and [Service.stopForeground].
      */
     private inner class MediaControllerCallback : MediaControllerCompat.Callback() {
+        override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
+            mediaController.playbackState?.let { updateNotification(it) }
+        }
+
         override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
-            val updatedState = state?.state ?: return
+            state?.let { updateNotification(it) }
+        }
+
+        private fun updateNotification(state: PlaybackStateCompat) {
+            val updatedState = state.state
+            if (mediaController.metadata == null) {
+                return
+            }
 
             // Skip building a notification when state is "none".
             val notification = if (updatedState != PlaybackStateCompat.STATE_NONE) {
@@ -258,21 +294,36 @@ class MusicService : MediaBrowserServiceCompat() {
                 PlaybackStateCompat.STATE_PLAYING -> {
                     becomingNoisyReceiver.register()
 
-                    startForeground(NOW_PLAYING_NOTIFICATION, notification)
-                    isForegroundService = true
+                    /**
+                     * This may look strange, but the documentation for [Service.startForeground]
+                     * notes that "calling this method does *not* put the service in the started
+                     * state itself, even though the name sounds like it."
+                     */
+                    if (!isForegroundService) {
+                        startService(Intent(applicationContext, this@MusicService.javaClass))
+                        startForeground(NOW_PLAYING_NOTIFICATION, notification)
+                        isForegroundService = true
+                    } else if (notification != null) {
+                        notificationManager.notify(NOW_PLAYING_NOTIFICATION, notification)
+                    }
                 }
                 else -> {
                     becomingNoisyReceiver.unregister()
 
                     if (isForegroundService) {
                         stopForeground(false)
+                        isForegroundService = false
+
+                        // If playback has ended, also stop the service.
+                        if (updatedState == PlaybackStateCompat.STATE_NONE) {
+                            stopSelf()
+                        }
 
                         if (notification != null) {
                             notificationManager.notify(NOW_PLAYING_NOTIFICATION, notification)
                         } else {
                             removeNowPlayingNotification()
                         }
-                        isForegroundService = false
                     }
                 }
             }
