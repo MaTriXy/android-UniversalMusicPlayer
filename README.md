@@ -1,8 +1,7 @@
 Universal Android Music Player Sample
 =====================================
-
 The goal of this sample is to show how to implement an audio media app that works
-across multiple form factors and provide a consistent user experience
+across multiple form factors and provides a consistent user experience
 on Android phones, tablets, Android Auto, Android Wear, Android TV, Google Cast devices,
 and with the Google Assistant. 
 
@@ -25,24 +24,32 @@ This sample uses the Gradle build system. To build this project, use the
 Support
 -------
 
+- Check out the [FAQs page](docs/FAQs.md)
 - Stack Overflow: http://stackoverflow.com/questions/tagged/android
 
 If you've found an error in this sample, please
-[file an issue](https://github.com/googlesamples/android-UniversalMusicPlayer/issues)
+[file an issue](https://github.com/android/UAMP/issues)
 
-Patches are encouraged, and may be submitted by forking this project and
+Patches are encouraged and may be submitted by forking this project and
 submitting a pull request through GitHub. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for more
 details.
 
-Music
+Audio
 -----
 
 Music provided by the [Free Music Archive](http://freemusicarchive.org/).
 
-- [Irsen's Tale](http://freemusicarchive.org/music/Kai_Engel/Irsens_Tale/) by
-[Kai Engel](http://freemusicarchive.org/music/Kai_Engel/).
 - [Wake Up](http://freemusicarchive.org/music/The_Kyoto_Connection/Wake_Up_1957/) by
 [The Kyoto Connection](http://freemusicarchive.org/music/The_Kyoto_Connection/).
+
+Recordings provided by the [Ambisonic Sound Library](https://library.soundfield.com/).
+
+- [Pre Game Marching Band](https://library.soundfield.com/track/163) by Watson Wu
+- [Chickens on a Farm](https://library.soundfield.com/track/129) by Watson Wu
+- [Rural Market Busker](https://library.soundfield.com/track/55) by Stephan Schutze
+- [Steamtrain Interior](https://library.soundfield.com/track/65) by Stephan Schutze
+- [Rural Road Car Pass](https://library.soundfield.com/track/57) by Stephan Schutze
+- [10 Feet from Shore](https://library.soundfield.com/track/114) by Watson Wu
 
 License
 -------

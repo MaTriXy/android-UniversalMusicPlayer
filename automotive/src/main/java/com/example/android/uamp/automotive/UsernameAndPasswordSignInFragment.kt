@@ -26,9 +26,10 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProviders
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 
@@ -40,14 +41,15 @@ class UsernameAndPasswordSignInFragment : Fragment() {
     private lateinit var toolbar: Toolbar
     private lateinit var appIcon: ImageView
     private lateinit var primaryTextView: TextView
-    private lateinit var passwordContainer : TextInputLayout
-    private lateinit var passwordInput : TextInputEditText
-    private lateinit var submitButton : Button
+    private lateinit var passwordContainer: TextInputLayout
+    private lateinit var passwordInput: TextInputEditText
+    private lateinit var submitButton: Button
     private lateinit var footerTextView: TextView
 
     override fun onCreateView(
-            inflater: LayoutInflater, container: ViewGroup?,
-            savedInstanceState: Bundle?): View? {
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         return inflater.inflate(R.layout.username_and_password_sign_in, container, false)
     }
 
@@ -67,7 +69,7 @@ class UsernameAndPasswordSignInFragment : Fragment() {
             requireActivity().supportFragmentManager.popBackStack()
         }
 
-        appIcon.setImageDrawable(context.getDrawable(R.drawable.aural_logo))
+        appIcon.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.aural_logo))
         primaryTextView.text = getString(R.string.username_and_password_sign_in_primary_text)
         passwordContainer.hint = getString(R.string.password_hint)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -75,8 +77,10 @@ class UsernameAndPasswordSignInFragment : Fragment() {
         }
 
         // Links in footer text should be clickable.
-        footerTextView.text = HtmlCompat.fromHtml(context.getString(R.string.sign_in_footer),
-          HtmlCompat.FROM_HTML_MODE_LEGACY)
+        footerTextView.text = HtmlCompat.fromHtml(
+            context.getString(R.string.sign_in_footer),
+            HtmlCompat.FROM_HTML_MODE_LEGACY
+        )
         footerTextView.movementMethod = LinkMovementMethod.getInstance()
 
         // Get user identifier from previous screen.
@@ -89,8 +93,8 @@ class UsernameAndPasswordSignInFragment : Fragment() {
     }
 
     private fun onSignIn(userIdentifier: CharSequence, password: CharSequence) {
-        ViewModelProviders.of(requireActivity())
-                .get(SignInActivityViewModel::class.java)
-                .login(userIdentifier.toString(), password.toString())
+        ViewModelProvider(requireActivity())
+            .get(SignInActivityViewModel::class.java)
+            .login(userIdentifier.toString(), password.toString())
     }
 }
